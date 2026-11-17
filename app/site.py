@@ -4,7 +4,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 from html import escape
-from .portal_behaviour import detail_fragment, source_extension
+from .portal_behaviour import detail_fragment, source_extension, fault_injection
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = json.loads((ROOT / 'fixtures' / 'portal.json').read_text(encoding='utf-8'))
@@ -13,9 +13,9 @@ def render_index():
     cards = ''.join(f'<article class="card" data-key="{escape(item["id"])}"><h2>{escape(item["name"])}</h2><p>{escape(item["summary"])}</p><a href="/detail?id={escape(item["id"])}">查看详情</a></article>' for item in DATA['items'])
     return f'<!doctype html><html lang="zh"><meta charset="utf-8"><title>{escape(DATA["title"])}</title><h1>{escape(DATA["title"])}</h1><nav><a href="/">目录</a></nav><main>{cards}</main></html>'
 
-def render_detail(item):
+def render_detail(item, fault=None):
     options = ''.join(f'<option value="{escape(str(choice))}">{escape(str(choice))}</option>' for choice in item['choices'])
-    fragment = detail_fragment(item) + source_extension(item)
+    fragment = detail_fragment(item) + source_extension(item) + fault_injection(fault)
     return f"""<!doctype html><html lang="zh"><meta charset="utf-8"><title>{escape(item['name'])}</title><a href="/">返回目录</a><main data-key="{escape(item['id'])}"><h1>{escape(item['name'])}</h1><p id="summary">{escape(item['summary'])}</p><label>{escape(DATA['dimensions'][0])}<select id="choice">{options}</select></label><button id="details" type="button">{escape(DATA['dimensions'][1])}</button><section id="panel" aria-live="polite"></section><button id="preview" type="button">{escape(DATA['dimensions'][2])}</button><section id="result" aria-live="polite"></section>{fragment}</main><script>
 const choice=document.getElementById('choice'); const panel=document.getElementById('panel'); const result=document.getElementById('result');
 choice.addEventListener('change',()=>{{panel.textContent='';result.textContent='';}});
@@ -29,9 +29,14 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == '/':
             body, code = render_index(), 200
         elif parsed.path == '/detail':
-            key = parse_qs(parsed.query).get('id', [''])[0]
+            query = parse_qs(parsed.query)
+            key = query.get('id', [''])[0]
             item = next((row for row in DATA['items'] if row['id'] == key), None)
-            body, code = (render_detail(item), 200) if item else ('未找到', 404)
+            if item:
+                fault = query.get('fault', [''])[0]
+                body, code = render_detail(item, fault or None), 200
+            else:
+                body, code = '未找到', 404
         else:
             body, code = '未找到', 404
         encoded = body.encode('utf-8')
