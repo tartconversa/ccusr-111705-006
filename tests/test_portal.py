@@ -10,6 +10,6 @@ class PortalInteractionTest(BrowserBaselineTest):
             try:
                 page = browser.new_page()
                 page.goto(self.origin + "detail?id=" + DATA["items"][0]["id"], wait_until="domcontentloaded")
-                page.locator('#city').select_option('江苏');page.locator('#ticket').select_option('演出票');page.locator('#voucher-preview').click();self.assertEqual(page.locator('#voucher').inner_text(),'江苏 / 演出票')
+                page.locator('#city').select_option('江苏');self.assertEqual(page.locator('#merchant').inner_text(),'咖啡馆');page.locator('#ticket').select_option('演出票');page.locator('#voucher-preview').click();self.assertIn('名额待核',page.locator('#voucher').inner_text());page.locator('#city').select_option('北京');self.assertEqual(page.locator('#ticket').input_value(),'网球票')
             finally:
                 browser.close()
